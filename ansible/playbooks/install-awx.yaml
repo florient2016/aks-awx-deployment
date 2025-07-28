@@ -1,0 +1,97 @@
+---
+- name: Install AWX on AKS
+  hosts: localhost
+  gather_facts: false
+  vars:
+    awx_admin_password: "{{ vault_awx_admin_password | default('changeme123!') }}"
+    
+  tasks:
+    - name: Get AKS credentials
+      shell: |
+        az aks get-credentials --resource-group {{ resource_group }} --name {{ cluster_name }} --overwrite-existing
+      delegate_to: localhost
+
+    - name: Create AWX namespaces
+      kubernetes.core.k8s:
+        name: "{{ item }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+      loop:
+        - "{{ awx_namespace }}"
+        - "{{ awx_operator_namespace }}"
+
+    - name: Create AWX admin password secret
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: awx-admin-password
+            namespace: "{{ awx_namespace }}"
+          type: Opaque
+          data:
+            password: "{{ awx_admin_password | b64encode }}"
+
+    - name: Install AWX Operator
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s-manifests/awx-operator.yml') | from_yaml_all | list }}"
+
+    - name: Wait for AWX Operator to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: awx-operator
+        namespace: "{{ awx_operator_namespace }}"
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 300
+
+    - name: Deploy AWX instance
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../../k8s-manifests/awx-instance.yml') | from_yaml }}"
+
+    - name: Wait for AWX deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: awx-demo-web
+        namespace: "{{ awx_namespace }}"
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 600
+
+    - name: Get AWX service information
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: awx-demo-service
+        namespace: "{{ awx_namespace }}"
+      register: awx_service
+
+    - name: Display AWX access information
+      debug:
+        msg: |
+          AWX has been deployed successfully!
+          
+          Service Type: {{ awx_service.resources[0].spec.type }}
+          {% if awx_service.resources[0].spec.type == 'LoadBalancer' %}
+          External IP: {{ awx_service.resources[0].status.loadBalancer.ingress[0].ip | default('Pending...') }}
+          {% endif %}
+          
+          To access AWX:
+          {% if awx_service.resources[0].spec.type == 'LoadBalancer' %}
+          1. Wait for external IP to be assigned
+          2. Access via: http://{{ awx_service.resources[0].status.loadBalancer.ingress[0].ip | default('<PENDING-IP>') }}
+          {% else %}
+          1. Port forward: kubectl port-forward -n {{ awx_namespace }} service/awx-demo-service 8080:80
+          2. Access via: http://localhost:8080
+          {% endif %}
+          
+          Login credentials:
+          Username: admin
+          Password: {{ awx_admin_password }}

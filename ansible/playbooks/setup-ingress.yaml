@@ -1,0 +1,84 @@
+---
+- name: Setup NGINX Ingress Controller
+  hosts: localhost
+  gather_facts: false
+  
+  tasks:
+    - name: Add NGINX Ingress Helm repository
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: https://kubernetes.github.io/ingress-nginx
+
+    - name: Install NGINX Ingress Controller
+      kubernetes.core.helm:
+        name: ingress-nginx
+        chart_ref: ingress-nginx/ingress-nginx
+        release_namespace: ingress-nginx
+        create_namespace: true
+        values:
+          controller:
+            service:
+              type: LoadBalancer
+              loadBalancerIP: "{{ ingress_ip | default('') }}"
+            resources:
+              requests:
+                cpu: 100m
+                memory: 90Mi
+              limits:
+                cpu: 200m
+                memory: 200Mi
+            replicaCount: 1
+
+    - name: Wait for NGINX Ingress Controller to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 300
+
+    - name: Create AWX Ingress
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: awx-ingress
+            namespace: "{{ awx_namespace }}"
+            annotations:
+              kubernetes.io/ingress.class: nginx
+              nginx.ingress.kubernetes.io/rewrite-target: /
+          spec:
+            rules:
+            - host: awx.local
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: awx-demo-service
+                      port:
+                        number: 80
+
+    - name: Get Ingress Controller service info
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+      register: ingress_service
+
+    - name: Display Ingress information
+      debug:
+        msg: |
+          NGINX Ingress Controller deployed successfully!
+          
+          External IP: {{ ingress_service.resources[0].status.loadBalancer.ingress[0].ip | default('Pending...') }}
+          
+          To access AWX via Ingress:
+          1. Add to your /etc/hosts: <EXTERNAL-IP> awx.local
+          2. Access via: http://awx.local
