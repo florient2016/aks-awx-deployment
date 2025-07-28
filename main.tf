@@ -20,6 +20,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   dns_prefix          = "awxaks"
+  kubernetes_version  = "1.26" # Specify a supported version; adjust as needed
 
   default_node_pool {
     name            = "default"
@@ -36,10 +37,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
     network_plugin = "azure"
     dns_service_ip = "10.0.0.10"
     service_cidr   = "10.0.0.0/16"
-  }
-
-  http_application_routing {
-    enabled = true
   }
 
   role_based_access_control_enabled = true
