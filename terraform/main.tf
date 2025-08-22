@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  #required_version = ">= 1.0"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -42,7 +42,8 @@ resource "azurerm_kubernetes_cluster" "main" {
     node_count          = var.node_count
     vm_size             = var.vm_size
     type                = "VirtualMachineScaleSets"
-    auto_scaling_enabled = true
+    #auto_scaling_enabled = true
+    enable_auto_scaling = true
     min_count           = 1
     max_count           = 3
     max_pods            = 30
@@ -74,7 +75,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   # HTTP Application Routing (simple ingress)
-  http_application_routing_enabled = true
+  #http_application_routing_enabled = true
 
   tags = var.tags
 }

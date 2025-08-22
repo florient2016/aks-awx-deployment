@@ -1,7 +1,7 @@
 variable "resource_group_name" {
   description = "Name of the Azure Resource Group"
   type        = string
-  default     = "rg-aks-awx"
+  default     = "btech-rg-aks"
 }
 
 variable "location" {
@@ -13,13 +13,13 @@ variable "location" {
 variable "cluster_name" {
   description = "Name of the AKS cluster"
   type        = string
-  default     = "aks-awx-cluster"
+  default     = "btech-aks-cluster"
 }
 
 variable "node_count" {
   description = "Number of nodes in the AKS cluster"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "vm_size" {
@@ -31,13 +31,13 @@ variable "vm_size" {
 variable "kubernetes_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.28.5"
+  default     = "1.32.6"
 }
 
 variable "dns_prefix" {
   description = "DNS prefix for the cluster"
   type        = string
-  default     = "aks-awx"
+  default     = "btech-aks-awx"
 }
 
 variable "tags" {
