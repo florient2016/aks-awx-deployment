@@ -25,7 +25,7 @@ variable "node_count" {
 variable "vm_size" {
   description = "VM size for AKS nodes"
   type        = string
-  default     = "Standard_B2s"  # 2 vCPU, 4GB RAM - minimal for AWX
+  default     = "Standard_D4s_v3"  # 2 vCPU, 4GB RAM - minimal for AWX Standard_B2s
 }
 
 variable "kubernetes_version" {

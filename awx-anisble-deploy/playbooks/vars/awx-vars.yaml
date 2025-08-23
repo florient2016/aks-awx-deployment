@@ -1,14 +1,14 @@
 ---
 # AKS Configuration
-aks_resource_group: "rg-awx"  # Update this to match your resource group
-aks_cluster_name: "awx-aks-cluster"  # Update this to match your AKS cluster name
+aks_resource_group: "btech-rg-aks"  # Update this to match your resource group
+aks_cluster_name: "btech-aks-cluster"  # Update this to match your AKS cluster name
 
 # Kubernetes Configuration
 awx_namespace: "awx"
 kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
 
 # PostgreSQL Configuration (from Terraform outputs)
-postgresql_host: "awx-postgresql-server.postgres.database.azure.com"  # Update from terraform output
+postgresql_host: "awx-pg-server.postgres.database.azure.com"  # Update from terraform output awx-postgresql-server.postgres.database.azure.com
 postgresql_port: 5432
 postgresql_database: "awx"
 postgresql_username: "awxadmin"
@@ -21,10 +21,14 @@ awx_admin_user: "admin"
 awx_admin_password: "awx_admin_password_123"
 awx_version: "22.7.0"
 awx_operator_version: "2.7.0"
+awx_secret_key: "YourSecretKey123!@#$%^&*()_+{}|:<>?[]\\;'\",./"
 
 # High Availability Configuration
-awx_web_replicas: 2
-awx_task_replicas: 2
+awx_web_replicas: 1
+awx_task_replicas: 1
+
+awx_replicas: 1
+
 
 # Resource Configuration
 awx_web_memory_request: "1Gi"
@@ -41,7 +45,17 @@ awx_task_cpu_limit: "2000m"
 awx_storage_class: "default"
 awx_projects_storage_size: "10Gi"
 
+# Service Exposure Configuration
+# Options: "loadbalancer" or "ingress"
+service_type: "none"  # Change to "loadbalancer" or "ingress" if needed
+
 # Exposure Configuration
-awx_expose_type: "loadbalancer"  # Options: loadbalancer, ingress, none
+awx_expose_type: "loadbalancer"  # Options: loadbalancer, ingress,Ingress, route, none
 awx_hostname: "awx.example.com"  # Required if awx_expose_type is 'ingress'
 awx_ingress_class: "nginx"       # Required if awx_expose_type is 'ingress'
+
+# Resource Requirements - Execution Environment
+awx_ee_cpu_request: "500m"
+awx_ee_memory_request: "1Gi"
+awx_ee_cpu_limit: "2"
+awx_ee_memory_limit: "4Gi"

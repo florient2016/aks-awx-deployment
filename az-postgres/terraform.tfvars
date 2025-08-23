@@ -1,11 +1,11 @@
 # terraform.tfvars
-resource_group_name         = "btech-rg-awx"
+resource_group_name         = "btech-rg-aks"
 location                   = "East US 2"
 create_resource_group      = true  # Set to false if resource group already exists
 
 postgresql_server_name     = "awx-pg-server"
 postgresql_admin_username  = "awxadmin"
-postgresql_admin_password  = "tete@2016"
+#postgresql_admin_password  = ""
 
 # HA Configuration - options: "auto", "ZoneRedundant", "SameZone", "disabled"
 enable_high_availability   = "disabled"  # Will automatically choose best HA mode for region
