@@ -1,7 +1,7 @@
 # terraform.tfvars
 resource_group_name         = "btech-rg-aks"
 location                   = "East US 2"
-create_resource_group      = true  # Set to false if resource group already exists
+create_resource_group      = false  # Set to false if resource group already exists
 
 postgresql_server_name     = "awx-pg-server"
 postgresql_admin_username  = "awxadmin"
