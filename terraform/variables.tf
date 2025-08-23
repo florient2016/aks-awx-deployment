@@ -44,7 +44,7 @@ variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
   default = {
-    Environment = "development"
-    Purpose     = "awx-deployment"
+    Environment = "production"
+    rules     = "awx-cluster"
   }
 }

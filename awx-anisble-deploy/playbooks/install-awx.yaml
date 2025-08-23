@@ -1,0 +1,285 @@
+---
+- name: Deploy AWX on Azure AKS with High Availability
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - vars/awx-vars.yaml
+  
+  tasks:
+    - name: Ensure required Python packages are installed
+      pip:
+        name:
+          - kubernetes
+          - openshift
+          - pyyaml
+        state: present
+
+    - name: Configure kubectl for AKS cluster
+      shell: |
+        az aks get-credentials --resource-group {{ aks_resource_group }} --name {{ aks_cluster_name }} --overwrite-existing
+      changed_when: false
+
+    - name: Create AWX namespace
+      kubernetes.core.k8s:
+        name: "{{ awx_namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Add AWX Operator Helm repository
+      kubernetes.core.helm_repository:
+        name: awx-operator
+        repo_url: https://ansible.github.io/awx-operator/
+
+    - name: Deploy AWX Operator using Helm
+      kubernetes.core.helm:
+        name: awx-operator
+        chart_ref: awx-operator/awx-operator
+        release_namespace: "{{ awx_namespace }}"
+        create_namespace: true
+        chart_version: "{{ awx_operator_version }}"
+        values:
+          AWX:
+            enabled: false
+          controllerManager:
+            manager:
+              resources:
+                limits:
+                  cpu: 1000m
+                  memory: 2Gi
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+            replicas: 2
+
+    - name: Wait for AWX operator deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: awx-operator-controller-manager
+        namespace: "{{ awx_namespace }}"
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 300
+
+    - name: Create PostgreSQL secret
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ awx_instance_name }}-postgres-configuration"
+            namespace: "{{ awx_namespace }}"
+          type: Opaque
+          stringData:
+            host: "{{ postgresql_host }}"
+            port: "5432"
+            database: "{{ postgresql_database }}"
+            username: "{{ postgresql_username }}"
+            password: "{{ postgresql_password }}"
+            sslmode: require
+            type: managed
+
+    - name: Create AWX admin password secret
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ awx_instance_name }}-admin-password"
+            namespace: "{{ awx_namespace }}"
+          type: Opaque
+          stringData:
+            password: "{{ awx_admin_password }}"
+
+    - name: Create AWX secret key secret
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ awx_instance_name }}-secret-key"
+            namespace: "{{ awx_namespace }}"
+          type: Opaque
+          stringData:
+            secret_key: "{{ awx_secret_key }}"
+
+    - name: Create persistent volume claim for AWX projects
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: "{{ awx_instance_name }}-projects-claim"
+            namespace: "{{ awx_namespace }}"
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            storageClassName: managed-csi
+            resources:
+              requests:
+                storage: "{{ awx_projects_storage_size }}"
+
+    - name: Deploy AWX instance with high availability
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: awx.ansible.com/v1beta1
+          kind: AWX
+          metadata:
+            name: "{{ awx_instance_name }}"
+            namespace: "{{ awx_namespace }}"
+          spec:
+            admin_user: "{{ awx_admin_user }}"
+            admin_password_secret: "{{ awx_instance_name }}-admin-password"
+            secret_key_secret: "{{ awx_instance_name }}-secret-key"
+            
+            postgres_configuration_secret: "{{ awx_instance_name }}-postgres-configuration"
+            
+            projects_persistence: true
+            projects_storage_class: managed-csi
+            projects_storage_size: "{{ awx_projects_storage_size }}"
+            projects_existing_claim: "{{ awx_instance_name }}-projects-claim"
+            
+            # High availability configuration
+            replicas: "{{ awx_replicas }}"
+            web_replicas: "{{ awx_web_replicas }}"
+            task_replicas: "{{ awx_task_replicas }}"
+            
+            # Resource specifications
+            web_resource_requirements:
+              requests:
+                cpu: "{{ awx_web_cpu_request }}"
+                memory: "{{ awx_web_memory_request }}"
+              limits:
+                cpu: "{{ awx_web_cpu_limit }}"
+                memory: "{{ awx_web_memory_limit }}"
+            
+            task_resource_requirements:
+              requests:
+                cpu: "{{ awx_task_cpu_request }}"
+                memory: "{{ awx_task_memory_request }}"
+              limits:
+                cpu: "{{ awx_task_cpu_limit }}"
+                memory: "{{ awx_task_memory_limit }}"
+            
+            ee_resource_requirements:
+              requests:
+                cpu: "{{ awx_ee_cpu_request }}"
+                memory: "{{ awx_ee_memory_request }}"
+              limits:
+                cpu: "{{ awx_ee_cpu_limit }}"
+                memory: "{{ awx_ee_memory_limit }}"
+            
+            # Image configuration
+            image: "{{ awx_image }}"
+            image_version: "{{ awx_version }}"
+            image_pull_policy: Always
+            
+            # Additional configuration
+            hostname: "{{ awx_hostname }}"
+            ingress_type: "{{ service_type }}"
+            ingress_class_name: "{{ ingress_class_name if service_type == 'ingress' else omit }}"
+            service_type: "{{ 'LoadBalancer' if service_type == 'loadbalancer' else 'ClusterIP' }}"
+            
+            # Security context
+            security_context_settings:
+              runAsUser: 1000
+              runAsGroup: 0
+              fsGroup: 0
+              fsGroupChangePolicy: "OnRootMismatch"
+
+    - name: Wait for AWX deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ awx_instance_name }}-web"
+        namespace: "{{ awx_namespace }}"
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 600
+
+    - name: Wait for AWX task deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ awx_instance_name }}-task"
+        namespace: "{{ awx_namespace }}"
+        wait_condition:
+          type: Available
+          status: "True"
+        wait_timeout: 600
+
+    - name: Create ingress for AWX (if enabled)
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: "{{ awx_instance_name }}-ingress"
+            namespace: "{{ awx_namespace }}"
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/proxy-body-size: 50m
+              nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          spec:
+            ingressClassName: "{{ ingress_class_name }}"
+            tls:
+              - hosts:
+                  - "{{ awx_hostname }}"
+                secretName: "{{ awx_instance_name }}-tls"
+            rules:
+              - host: "{{ awx_hostname }}"
+                http:
+                  paths:
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: "{{ awx_instance_name }}-service"
+                          port:
+                            number: 80
+      when: service_type == "ingress"
+
+    - name: Get AWX service information
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: "{{ awx_instance_name }}-service"
+        namespace: "{{ awx_namespace }}"
+      register: awx_service
+
+    - name: Get LoadBalancer IP (if applicable)
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Service
+        name: "{{ awx_instance_name }}-service"
+        namespace: "{{ awx_namespace }}"
+        wait_condition:
+          type: LoadBalancer
+        wait_timeout: 300
+      register: awx_loadbalancer
+      when: service_type == "loadbalancer"
+
+    - name: Display AWX access information
+      debug:
+        msg: |
+          AWX has been successfully deployed!
+          
+          Namespace: {{ awx_namespace }}
+          Admin Username: {{ awx_admin_user }}
+          Admin Password: {{ awx_admin_password }}
+          
+          {% if service_type == "loadbalancer" and awx_loadbalancer.resources[0].status.loadBalancer.ingress is defined %}
+          AWX URL: http://{{ awx_loadbalancer.resources[0].status.loadBalancer.ingress[0].ip }}
+          {% elif service_type == "ingress" %}
+          AWX URL: https://{{ awx_hostname }}
+          {% else %}
+          Service: {{ awx_instance_name }}-service.{{ awx_namespace }}.svc.cluster.local
+          Use 'kubectl port-forward' to access AWX locally
+          {% endif %}

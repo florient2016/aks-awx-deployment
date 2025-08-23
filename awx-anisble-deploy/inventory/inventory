@@ -1,0 +1,7 @@
+[localhost]
+localhost ansible_connection=local
+
+[all:vars]
+# Ansible configuration
+ansible_host_key_checking=False
+ansible_ssh_pipelining=True
