@@ -1,7 +1,13 @@
 [localhost]
-localhost ansible_connection=local
+localhost ansible_connection=local 
 
-[all:vars]
+[localhost:vars]
+ansible_host=localhost
+# Kubernetes config paths
+kubeconfig_path={{ ansible_env.HOME }}/.kube/config
+# Azure CLI authentication
+azure_auth_source=cli
+
 # Ansible configuration
 ansible_host_key_checking=False
 ansible_ssh_pipelining=True

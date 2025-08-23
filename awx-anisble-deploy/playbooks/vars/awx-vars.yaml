@@ -1,60 +1,47 @@
 ---
 # AKS Configuration
-aks_cluster_name: "my-aks-cluster"
-aks_resource_group: "my-resource-group"
+aks_resource_group: "rg-awx"  # Update this to match your resource group
+aks_cluster_name: "awx-aks-cluster"  # Update this to match your AKS cluster name
+
+# Kubernetes Configuration
+awx_namespace: "awx"
+kubeconfig_path: "{{ ansible_env.HOME }}/.kube/config"
 
 # PostgreSQL Configuration (from Terraform outputs)
-postgresql_host: "awx-postgresql-server.postgres.database.azure.com"
+postgresql_host: "awx-postgresql-server.postgres.database.azure.com"  # Update from terraform output
+postgresql_port: 5432
 postgresql_database: "awx"
 postgresql_username: "awxadmin"
-postgresql_password: "YourSecurePassword123!"
+postgresql_password: "YourSecurePassword123!"  # Update from terraform output
+postgresql_sslmode: "require"
 
-# AWX Configuration
-awx_namespace: "awx"
+# AWX Instance Configuration
 awx_instance_name: "awx"
-awx_operator_version: "2.7.2"
-awx_version: "23.3.1"
-awx_image: "quay.io/ansible/awx"
-
-# AWX Admin Configuration
 awx_admin_user: "admin"
-awx_admin_password: "YourAWXAdminPassword123!"
-awx_secret_key: "YourSecretKey123!@#$%^&*()_+{}|:<>?[]\\;'\",./"
+awx_admin_password: "awx_admin_password_123"
+awx_version: "22.7.0"
+awx_operator_version: "2.7.0"
 
 # High Availability Configuration
-awx_replicas: 2
 awx_web_replicas: 2
 awx_task_replicas: 2
 
-# Resource Requirements - Web Pods
-awx_web_cpu_request: "500m"
+# Resource Configuration
 awx_web_memory_request: "1Gi"
-awx_web_cpu_limit: "2"
-awx_web_memory_limit: "4Gi"
+awx_web_memory_limit: "2Gi"
+awx_web_cpu_request: "500m"
+awx_web_cpu_limit: "1000m"
 
-# Resource Requirements - Task Pods
-awx_task_cpu_request: "1"
 awx_task_memory_request: "2Gi"
-awx_task_cpu_limit: "4"
-awx_task_memory_limit: "8Gi"
-
-# Resource Requirements - Execution Environment
-awx_ee_cpu_request: "500m"
-awx_ee_memory_request: "1Gi"
-awx_ee_cpu_limit: "2"
-awx_ee_memory_limit: "4Gi"
+awx_task_memory_limit: "4Gi"
+awx_task_cpu_request: "1000m"
+awx_task_cpu_limit: "2000m"
 
 # Storage Configuration
+awx_storage_class: "default"
 awx_projects_storage_size: "10Gi"
 
-# Service Exposure Configuration
-# Options: "loadbalancer" or "ingress"
-service_type: "loadbalancer"
-
-# Ingress Configuration (only if service_type is "ingress")
-awx_hostname: "awx.yourdomain.com"
-ingress_class_name: "nginx"
-
-# Node Affinity and Pod Anti-affinity for high availability
-enable_pod_anti_affinity: true
-enable_node_affinity: true
+# Exposure Configuration
+awx_expose_type: "loadbalancer"  # Options: loadbalancer, ingress, none
+awx_hostname: "awx.example.com"  # Required if awx_expose_type is 'ingress'
+awx_ingress_class: "nginx"       # Required if awx_expose_type is 'ingress'
